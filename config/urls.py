@@ -37,4 +37,11 @@ urlpatterns = [
     path('listings/', ListingViewSet.as_view({'get': 'list'}), name='listing-list'),
     path('profiles/', views.profile_list, name='profile-list'),
     path('profiles/<int:pk>/', views.profile_detail, name='profile-detail'),
+    path('listings/', ListingViewSet.as_view({'post': 'create'}), name='listing-create'),
+    path('listings/', ListingViewSet.as_view({'get': 'list'}), name='listing-list'),
+    path('listings/<int:pk>/edit/', views.update_listing, name='update_listing'),
+    path('listings/<int:pk>/delete/', views.delete_listing, name='delete_listing'),
+    path('listings/<int:pk>/toggle/', views.toggle_listing_status, name='toggle_listing_status'),
+    path('listings/<int:pk>/partial_update/', views.partial_update, name='partial_update'),
+
 ]

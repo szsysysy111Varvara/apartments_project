@@ -1,11 +1,16 @@
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User, Group
 from django.contrib.auth import authenticate, login, logout, get_user_model
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import api_view, action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from rentapp.decorators import landlord_required
+from rentapp.models import Listing
 from .models import Profile
 from .serializers import UserRegistrationSerializer, GroupSerializer, UserSerializer, ProfileSerializer
 from .permissions import IsLandlordOrReadOnly, IsRenterOrReadOnly
@@ -141,4 +146,33 @@ def profile_detail(request, pk):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+@login_required
+@landlord_required
+@action(detail=True, methods=['patch'])
+def partial_update(self, request, pk=None):
+    listing = self.get_object()
+    serializer = self.get_serializer(listing, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response(serializer.data)
 
+@login_required
+@landlord_required
+@action(detail=True, methods=['put'])
+def update_listing(request, pk):
+    listing = get_object_or_404(Listing, pk=pk)
+    return HttpResponse("Listing updated successfully")
+
+@login_required
+@landlord_required
+@action(detail=True, methods=['delete'])
+def delete_listing(request, pk):
+    listing = get_object_or_404(Listing, pk=pk)
+    return HttpResponse("Listing deleted successfully")
+
+@login_required
+@landlord_required
+@action(detail=True, methods=['put', 'patch'])
+def toggle_listing_status(request, pk):
+    listing = get_object_or_404(Listing, pk=pk)
+    return HttpResponse("Listing status toggled successfully")
