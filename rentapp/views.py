@@ -1,17 +1,20 @@
-import logging
-
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action, api_view
+from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from users.models import Profile
-from .decorators import landlord_required
-from .models import Listing
-from .serializers import ListingSerializer
-from .permissions import IsRenter, IsLandlord
-from django.http import HttpResponse, HttpResponseForbidden
 
+from users.permissions import IsRenterOrReadOnly, IsLandlordOrReadOnly
+from .decorators import landlord_required
+from .filters import ListingFilter
+from .models import Listing
+from .permissions import IsRenter, IsLandlord
+from .serializers import ListingSerializer
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
 
 class IsOwnerOrReadOnly(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
@@ -22,16 +25,54 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
 class ListingViewSet(viewsets.ModelViewSet):
     queryset = Listing.objects.all()
     serializer_class = ListingSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter,
+                       filters.OrderingFilter]
+    filterset_class = ListingFilter
+    search_fields = ['title', 'description']
+    ordering_fields = ['price', 'created_at']
+
+
+    @action(detail=False, methods=['get'], permission_classes=[IsRenterOrReadOnly | IsLandlordOrReadOnly])
+    def search(self, request):
+        search_term = request.query_params.get('search', '')
+        queryset = Listing.objects.filter(Q(title__icontains=search_term) | Q(description__icontains=search_term))
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def get_queryset(self):
+        queryset = Listing.objects.all()
+        min_price = self.request.query_params.get('min_price')
+        max_price = self.request.query_params.get('max_price')
+        location = self.request.query_params.get('location')
+        min_rooms = self.request.query_params.get('min_rooms')
+        max_rooms = self.request.query_params.get('max_rooms')
+        housing_type = self.request.query_params.get('housing_type')
+
+        if min_price:
+            queryset = queryset.filter(price__gte=min_price)
+        if max_price:
+            queryset = queryset.filter(price__lte=max_price)
+        if location:
+            queryset = queryset.filter(location__icontains=location)
+        if min_rooms:
+            queryset = queryset.filter(rooms__gte=min_rooms)
+        if max_rooms:
+            queryset = queryset.filter(rooms__lte=max_rooms)
+        if housing_type:
+            queryset = queryset.filter(housing_type=housing_type)
+
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'change_status', 'partial_update']:
-            return [permissions.IsAuthenticated(), IsLandlord(), IsOwnerOrReadOnly()]
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'change_status']:
+            return [IsAuthenticated(), IsLandlord(), IsOwnerOrReadOnly()]
+        elif self.action == 'search':
+            return [AllowAny()]
         else:
-            return [permissions.IsAuthenticated(), IsRenter()]
-
+            return [IsAuthenticated(), IsRenter()]
     @action(detail=True, methods=['put'])
     def change_status(self, request, pk=None):
         listing = self.get_object()
