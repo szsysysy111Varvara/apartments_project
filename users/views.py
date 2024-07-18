@@ -1,69 +1,144 @@
 from django.contrib.auth.models import User, Group
-from django.contrib.auth import authenticate, login, logout
-from django.contrib import messages
-from django.db import IntegrityError
-from rest_framework import viewsets, permissions
-from rentapp.permissions import IsRenter, IsLandlord
-from django.shortcuts import redirect, render
-from django.core.exceptions import ValidationError
-from django.core.validators import validate_email
-from rest_framework import status
+from django.contrib.auth import authenticate, login, logout, get_user_model
+from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import api_view, action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import UserRegistrationSerializer, GroupSerializer
+
+from .models import Profile
+from .serializers import UserRegistrationSerializer, GroupSerializer, UserSerializer, ProfileSerializer
+from .permissions import IsLandlordOrReadOnly, IsRenterOrReadOnly
+
 
 class UserRegistrationAPIView(APIView):
-    def post(self, request):
+    def post(self, request, *args, **kwargs):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
-            try:
-                user = serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            except IntegrityError:
-                return Response({"error": "User with this email already exists."}, status=status.HTTP_400_BAD_REQUEST)
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserRegistrationSerializer
     permission_classes = [permissions.AllowAny]
 
+
+
 class GroupViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all()
     serializer_class = GroupSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=True, methods=['get'])
+    def users(self, request, pk=None):
+        group = self.get_object()
+        users = group.user_set.all()
+        serializer = UserSerializer(users, many=True)
+        return Response(serializer.data)
+
+
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated(), IsLandlord()]
+            return [permissions.IsAuthenticated(), IsLandlordOrReadOnly()]
         else:
-            return [permissions.IsAuthenticated(), IsRenter()]
+            return [permissions.IsAuthenticated(), IsRenterOrReadOnly()]
 
 
+
+
+@api_view(['POST'])
 def user_login(request):
     if request.method == 'POST':
-        email = request.POST.get('email')
-        password = request.POST.get('password')
+        email = request.data.get('email')
+        password = request.data.get('password')
 
         try:
-            validate_email(email)
-        except ValidationError:
-            messages.error(request, 'Invalid email format')
-            return render(request, 'login.html')
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"error": "User does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
-        user = authenticate(request=request, username=email, password=password)
+        user = authenticate(request=request, username=user.username, password=password)
+
         if user is not None:
             login(request, user)
-            return redirect('/')
+            return Response({"message": "User authenticated successfully."}, status=status.HTTP_200_OK)
         else:
-            messages.error(request, 'Invalid email or password')
+            return Response({"error": "Invalid email or password."}, status=status.HTTP_401_UNAUTHORIZED)
+    else:
+        return Response({"error": "Method not allowed."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-    return render(request, 'login.html')
 
+
+@api_view(['POST'])
 def user_logout(request):
-    logout(request)
-    return redirect('/')
+    if request.method == 'POST':
+        logout(request)
+        return Response({"message": "User logged out successfully."}, status=status.HTTP_200_OK)
+
+    return Response({"error": "Method Not Allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
+User = get_user_model()
+
+class GroupListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        groups = Group.objects.all()
+        serializer = GroupSerializer(groups, many=True)
+        return Response(serializer.data)
+
+class GroupUserListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        group = Group.objects.get(pk=pk)
+        users = User.objects.filter(groups=group)
+        serializer = UserSerializer(users, many=True)
+        return Response(serializer.data)
+
+
+@api_view(['GET', 'POST'])
+def profile_list(request):
+    if request.method == 'GET':
+        profiles = Profile.objects.all()
+        serializer = ProfileSerializer(profiles, many=True)
+        return Response(serializer.data)
+
+    elif request.method == 'POST':
+        serializer = ProfileSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PUT', 'DELETE'])
+def profile_detail(request, pk):
+    try:
+        profile = Profile.objects.get(pk=pk)
+    except Profile.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = ProfileSerializer(profile)
+        return Response(serializer.data)
+
+    elif request.method == 'PUT':
+        serializer = ProfileSerializer(profile, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        profile.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 

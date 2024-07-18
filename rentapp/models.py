@@ -4,6 +4,11 @@ from users.models import Profile
 
 
 class Listing(models.Model):
+    STATUS_CHOICES = (
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+    )
+
     HOUSING_TYPE_CHOICES = (
         ('apartment', 'Apartment'),
         ('house', 'House'),
@@ -17,7 +22,7 @@ class Listing(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     rooms = models.IntegerField()
     housing_type = models.CharField(max_length=20, choices=HOUSING_TYPE_CHOICES)
-    is_active = models.BooleanField(default=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
 
     def __str__(self):

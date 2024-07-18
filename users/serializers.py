@@ -1,24 +1,26 @@
 from django.contrib.auth.models import User, Group
-from django.db import IntegrityError
 from rest_framework import serializers
+from users.models import Profile
+
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
-    groups = serializers.PrimaryKeyRelatedField(queryset=Group.objects.all(), many=True, required=False)
+    password = serializers.CharField(write_only=True)
+    user_type = serializers.ChoiceField(choices=[('Renter', 'Renter'), ('Landlord', 'Landlord')], write_only=True)
+
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'groups']
-        extra_kwargs = {'password': {'write_only': True, 'required': True}}
+        fields = ('username', 'email', 'password',  'user_type')
 
     def create(self, validated_data):
-        try:
-            groups_data = validated_data.pop('groups', [])
-            user = User.objects.create_user(**validated_data)
-            for group in groups_data:
-                user.groups.add(group)
-            return user
-        except IntegrityError:
-            raise serializers.ValidationError("User with this email already exists.")
+        user_type = validated_data.pop('user_type', None)
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=validated_data['password']
 
+        )
+        Profile.objects.create(user=user, user_type=user_type)
+        return user
 
 class GroupSerializer(serializers.ModelSerializer):
     class Meta:
@@ -32,3 +34,13 @@ class GroupSerializer(serializers.ModelSerializer):
         instance.name = validated_data.get('name', instance.name)
         instance.save()
         return instance
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email']
+
+class ProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Profile
+        fields = ['id', 'user', 'user_type']
