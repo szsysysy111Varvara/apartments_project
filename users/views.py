@@ -2,7 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User, Group
 from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import api_view, action
@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from rentapp.decorators import landlord_required
+from rentapp.forms_review import ReviewForm
 from rentapp.models import Listing, Booking
 from rentapp.serializers import BookingSerializer
 from rentapp.views import IsOwnerOrReadOnly
@@ -214,3 +215,16 @@ class BookingViewSet(viewsets.ModelViewSet):
         booking.status = 'cancelled'
         booking.save()
         return Response({'status': 'Booking cancelled'})
+
+
+def add_review(request):
+    if request.method == 'POST':
+        form = ReviewForm(request.POST)
+        if form.is_valid():
+            review = form.save(commit=False)
+            review.owner = request.user
+            review.save()
+            return redirect('some_view')
+    else:
+        form = ReviewForm()
+    return render(request, 'template.html', {'form': form})

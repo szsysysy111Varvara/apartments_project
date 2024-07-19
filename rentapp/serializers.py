@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Listing, Booking
+from .models import Listing, Booking, Review
 
 
 class ListingSerializer(serializers.ModelSerializer):
@@ -24,3 +24,10 @@ class BookingSerializer(serializers.ModelSerializer):
         if request:
             validated_data['owner'] = request.user
         return super().create(validated_data)
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        fields = ['id', 'listing', 'owner', 'rating', 'comment', 'created_at']
+

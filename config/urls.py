@@ -16,7 +16,8 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from rentapp.views import ListingViewSet, BookingViewSet, BookingCreateView
+from rentapp.views import ListingViewSet, BookingViewSet, BookingCreateView, ReviewCreateView, ReviewListView, \
+    add_review
 from users import views
 from users.views import UserRegistrationAPIView
 from rest_framework_simplejwt.views import (
@@ -46,5 +47,7 @@ urlpatterns = [
     path('bookings/<int:pk>/confirm/', BookingViewSet.as_view({'post': 'confirm'}), name='booking-confirm'),
     path('bookings/<int:pk>/reject/', BookingViewSet.as_view({'post': 'reject'}), name='booking-reject'),
     path('bookings/create/', BookingCreateView.as_view(), name='booking-create'),
-
+    path('reviews/', ReviewCreateView.as_view(), name='review-create'),
+    path('reviews/<int:listing_id>/', ReviewListView.as_view(), name='review-list'),
+    path('review/add/', add_review, name='add_review'),
 ]

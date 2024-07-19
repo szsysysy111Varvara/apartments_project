@@ -3,10 +3,10 @@ from datetime import timedelta
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from rest_framework import viewsets, permissions, status, generics
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.generics import CreateAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -14,9 +14,10 @@ from users.permissions import IsRenterOrReadOnly, IsLandlordOrReadOnly
 from . import serializers
 from .decorators import landlord_required
 from .filters import ListingFilter
-from .models import Listing, Booking
+from .forms_review import ReviewForm
+from .models import Listing, Booking, Review
 from .permissions import IsRenter, IsLandlord
-from .serializers import ListingSerializer, BookingSerializer
+from .serializers import ListingSerializer, BookingSerializer, ReviewSerializer
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from .permissions import IsBookingOwner, IsBookingRenter
@@ -232,3 +233,33 @@ class BookingListView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         return Booking.objects.filter(owner=user)
+
+
+class ReviewCreateView(generics.CreateAPIView):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        listing_id = self.request.data.get('listing')
+        try:
+            listing = Listing.objects.get(id=listing_id)
+        except Listing.DoesNotExist:
+            raise serializers.ValidationError("Listing does not exist.")
+        serializer.save(owner=self.request.user)
+
+class ReviewListView(generics.ListAPIView):
+    serializer_class = ReviewSerializer
+
+    def get_queryset(self):
+        listing_id = self.kwargs['listing_id']
+        return Review.objects.filter(listing_id=listing_id)
+
+
+@api_view(['POST'])
+def add_review(request):
+    form = ReviewForm(request.data, request=request)
+    if form.is_valid():
+        review = form.save()
+        return Response({'status': 'Review added successfully'}, status=status.HTTP_201_CREATED)
+    return Response(form.errors, status=status.HTTP_400_BAD_REQUEST)

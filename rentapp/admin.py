@@ -1,7 +1,14 @@
 from django.contrib import admin
 
-from rentapp.models import Listing
+from rentapp.models import Listing, Review
 from rentapp.models import Booking
+
+
+@admin.register(Review)
+class ReviewAdmin(admin.ModelAdmin):
+    list_display = ('listing', 'owner', 'rating', 'created_at')
+    search_fields = ('owner__username', 'listing__id')
+
 
 class BookingAdmin(admin.ModelAdmin):
     list_display = ('id', 'listing', 'owner', 'renter', 'start_date', 'end_date', 'status')
