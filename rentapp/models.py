@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 
+from config import settings
 from users.models import Profile
 
 
@@ -34,3 +35,21 @@ class Listing(models.Model):
 class ModelToProfile(models.Model):
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='related_profile')
 
+class Booking(models.Model):
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Confirmed', 'Confirmed'),
+        ('Canceled', 'Canceled'),
+        ('Rejected', 'Rejected'),
+    ]
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)
+    listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name='bookings')
+    start_date = models.DateField()
+    end_date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    cancellation_deadline = models.DateField(default=timezone.now() + timezone.timedelta(days=1))
+
+    def __str__(self):
+        return f'Booking {self.id} by {self.owner}'

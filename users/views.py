@@ -3,6 +3,7 @@ from django.contrib.auth.models import User, Group
 from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import api_view, action
 from rest_framework.permissions import IsAuthenticated
@@ -10,7 +11,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from rentapp.decorators import landlord_required
-from rentapp.models import Listing
+from rentapp.models import Listing, Booking
+from rentapp.serializers import BookingSerializer
+from rentapp.views import IsOwnerOrReadOnly
 from .models import Profile
 from .serializers import UserRegistrationSerializer, GroupSerializer, UserSerializer, ProfileSerializer
 from .permissions import IsLandlordOrReadOnly, IsRenterOrReadOnly
@@ -176,3 +179,38 @@ def delete_listing(request, pk):
 def toggle_listing_status(request, pk):
     listing = get_object_or_404(Listing, pk=pk)
     return HttpResponse("Listing status toggled successfully")
+
+
+class BookingViewSet(viewsets.ModelViewSet):
+    queryset = Booking.objects.all()
+    serializer_class = BookingSerializer
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [permissions.IsAuthenticated(), IsOwnerOrReadOnly()]
+        elif self.action in ['list', 'retrieve']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.AllowAny()]
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def confirm(self, request, pk=None):
+        booking = self.get_object()
+        if booking.listing.owner != request.user:
+            return Response({"detail": "Not authorized to confirm this booking."}, status=status.HTTP_403_FORBIDDEN)
+        booking.status = 'confirmed'
+        booking.save()
+        return Response({'status': 'Booking confirmed'})
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def cancel(self, request, pk=None):
+        booking = self.get_object()
+        if booking.user != request.user and booking.listing.owner != request.user:
+            return Response({"detail": "Not authorized to cancel this booking."}, status=status.HTTP_403_FORBIDDEN)
+        if timezone.now().date() > booking.start_date:
+            return Response({"detail": "Cannot cancel past bookings."}, status=status.HTTP_400_BAD_REQUEST)
+        booking.status = 'cancelled'
+        booking.save()
+        return Response({'status': 'Booking cancelled'})

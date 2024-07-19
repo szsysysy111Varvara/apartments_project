@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from rentapp.views import ListingViewSet
+from rentapp.views import ListingViewSet, BookingViewSet, BookingCreateView
 from users import views
 from users.views import UserRegistrationAPIView
 from rest_framework_simplejwt.views import (
@@ -33,8 +33,6 @@ urlpatterns = [
     path('login/', views.user_login, name='login'),
     path('logout/', views.user_logout, name='logout'),
     path('register/', UserRegistrationAPIView.as_view(), name='register'),
-    #path('listings/', ListingViewSet.as_view({'post': 'create'}), name='listing-create'),
-    path('listings/', ListingViewSet.as_view({'get': 'list'}), name='listing-list'),
     path('profiles/', views.profile_list, name='profile-list'),
     path('profiles/<int:pk>/', views.profile_detail, name='profile-detail'),
     path('listings/', ListingViewSet.as_view({'post': 'create'}), name='listing-create'),
@@ -43,5 +41,10 @@ urlpatterns = [
     path('listings/<int:pk>/delete/', views.delete_listing, name='delete_listing'),
     path('listings/<int:pk>/toggle/', views.toggle_listing_status, name='toggle_listing_status'),
     path('listings/<int:pk>/partial_update/', views.partial_update, name='partial_update'),
+    path('bookings/', BookingViewSet.as_view({'get': 'list_bookings'}), name='booking-list'),
+    path('bookings/<int:pk>/cancel/', BookingViewSet.as_view({'post': 'cancel'}), name='booking-cancel'),
+    path('bookings/<int:pk>/confirm/', BookingViewSet.as_view({'post': 'confirm'}), name='booking-confirm'),
+    path('bookings/<int:pk>/reject/', BookingViewSet.as_view({'post': 'reject'}), name='booking-reject'),
+    path('bookings/create/', BookingCreateView.as_view(), name='booking-create'),
 
 ]
